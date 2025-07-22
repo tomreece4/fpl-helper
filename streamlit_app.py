@@ -7,8 +7,13 @@ def main():
     st.title("⚽ Fantasy Premier League 2025/26 Optimizer")
 
     st.sidebar.header("Optimizer Settings")
-    budget = st.sidebar.slider("Budget (£m)", min_value=80.0, max_value=120.0, value=100.0, step=0.5)
+    budget = st.sidebar.slider("Budget (£m)", min_value=80.0, max_value=105.0, value=100.0, step=0.5)
     st.sidebar.markdown("---")
+    use_fixture_weighting = st.sidebar.checkbox("Use future fixture difficulty weighting?", value=True)
+    fixture_weight = 0.0
+
+    if use_fixture_weighting:
+        fixture_weight = st.sidebar.slider("Weighting", min_value=0.0, max_value=1.0, step=0.1)
 
     if st.sidebar.button("🔄 Optimize Team"):
         with st.spinner("Fetching data and computing optimal squad for 2025/26..."):

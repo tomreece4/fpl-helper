@@ -4,11 +4,13 @@ import pulp
 
 FPL_BASE_URL = 'https://fantasy.premierleague.com/api'
 
+
 def fetch_fpl_data(endpoint: str) -> dict:
     url = f"{FPL_BASE_URL}/{endpoint}/"
     resp = requests.get(url)
     resp.raise_for_status()
     return resp.json()
+
 
 def load_raw_data() -> dict:
     bootstrap = fetch_fpl_data('bootstrap-static')
@@ -24,6 +26,7 @@ def load_raw_data() -> dict:
         'fixtures': fixtures_df
     }
 
+
 def engineer_features(players: pd.DataFrame, fixtures: pd.DataFrame) -> pd.DataFrame:
     df = players.copy()
     df['cost_m'] = df['now_cost'] / 10
@@ -35,7 +38,8 @@ def engineer_features(players: pd.DataFrame, fixtures: pd.DataFrame) -> pd.DataF
     team_fixt_difficulty = {}
 
     for team_id in players['team'].unique():
-        team_fixts = future_fixtures[(future_fixtures['team_h'] == team_id) | (future_fixtures['team_a'] == team_id)].head(5)
+        team_fixts = future_fixtures[
+            (future_fixtures['team_h'] == team_id) | (future_fixtures['team_a'] == team_id)].head(5)
 
         total_diff = 0
         for _, row in team_fixts.iterrows():
@@ -52,10 +56,12 @@ def engineer_features(players: pd.DataFrame, fixtures: pd.DataFrame) -> pd.DataF
     return df[['id', 'first_name', 'second_name', 'element_type', 'team', 'cost_m', 'total_points', 'form',
                'next_5_fixt_diff']]
 
-def optimize_team(df: pd.DataFrame, budget: float = 100.0) -> pd.DataFrame:
+
+def optimize_team(df: pd.DataFrame, budget: float = 100.0, fixture_weight: float = 1.0) -> pd.DataFrame:
     players = df['id'].tolist()
     cost = dict(zip(df['id'], df['cost_m']))
-    predicted_points = {row['id']: row['total_points'] * (6 - row['next_5_fixt_diff']) / 5 for _, row in df.iterrows()}
+    predicted_points = {row['id']: row['total_points'] * (1 if fixture_weight == 0 else (1 + fixture_weight * 6 - row['next_5_fixt_diff']) / 5 - fixture_weight)
+                        for _, row in df.iterrows()}
     positions = dict(zip(df['id'], df['element_type']))
     clubs = dict(zip(df['id'], df['team']))
 
@@ -78,6 +84,7 @@ def optimize_team(df: pd.DataFrame, budget: float = 100.0) -> pd.DataFrame:
 
     selected_ids = [i for i in players if x[i].value() == 1]
     return df[df['id'].isin(selected_ids)]
+
 
 if __name__ == '__main__':
     data = load_raw_data()
