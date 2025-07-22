@@ -29,7 +29,25 @@ def engineer_features(players: pd.DataFrame, fixtures: pd.DataFrame) -> pd.DataF
     df['cost_m'] = df['now_cost'] / 10
     df['form'] = pd.to_numeric(df['form'], errors='coerce').fillna(0)
 
-    df['next_5_fixt_diff'] = 0  # Placeholder for future fixture difficulty modeling
+    future_fixtures = fixtures[fixtures['event'].notna()]
+    future_fixtures = future_fixtures.sort_values(by='event')
+
+    team_fixt_difficulty = {}
+
+    for team_id in players['team'].unique():
+        team_fixts = future_fixtures[(future_fixtures['team_h'] == team_id) | (future_fixtures['team_a'] == team_id)].head(5)
+
+        total_diff = 0
+        for _, row in team_fixts.iterrows():
+            if row['team_h'] == team_id:
+                total_diff += row['team_h_difficulty']
+            else:
+                total_diff += row['team_a_difficulty']
+
+        avg_diff = total_diff / max(len(team_fixts), 1)
+        team_fixt_difficulty[team_id] = avg_diff
+
+    df['next_5_fixt_diff'] = df['team'].map(team_fixt_difficulty)
 
     return df[['id', 'first_name', 'second_name', 'element_type', 'team', 'cost_m', 'total_points', 'form',
                'next_5_fixt_diff']]
@@ -37,7 +55,7 @@ def engineer_features(players: pd.DataFrame, fixtures: pd.DataFrame) -> pd.DataF
 def optimize_team(df: pd.DataFrame, budget: float = 100.0) -> pd.DataFrame:
     players = df['id'].tolist()
     cost = dict(zip(df['id'], df['cost_m']))
-    predicted_points = dict(zip(df['id'], df['total_points']))
+    predicted_points = {row['id']: row['total_points'] * (6 - row['next_5_fixt_diff']) / 5 for _, row in df.iterrows()}
     positions = dict(zip(df['id'], df['element_type']))
     clubs = dict(zip(df['id'], df['team']))
 
