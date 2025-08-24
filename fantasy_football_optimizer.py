@@ -60,15 +60,25 @@ def engineer_features(players: pd.DataFrame, fixtures: pd.DataFrame) -> pd.DataF
 def optimize_team(df: pd.DataFrame, budget: float = 100.0, fixture_weight: float = 1.0) -> pd.DataFrame:
     players = df['id'].tolist()
     cost = dict(zip(df['id'], df['cost_m']))
-    predicted_points = {row['id']: row['total_points'] * (1 if fixture_weight == 0 else (1 + fixture_weight * 6 - row['next_5_fixt_diff']) / 5 - fixture_weight)
-                        for _, row in df.iterrows()}
     positions = dict(zip(df['id'], df['element_type']))
     clubs = dict(zip(df['id'], df['team']))
+
+    predicted_points = {}
+    for _, row in df.iterrows():
+        base_score = (0.6 * row['form']) + (0.4 * (row['total_points'] / max(row['cost_m'], 1)))
+
+        # Fixture adjustment (scaled between 0.8 and 1.2 depending on difficulty)
+        fixture_adj = 1 + fixture_weight * (3 - (row['next_5_fixt_diff'] - 3) / 6)
+        fixture_adj = max(0.8, min(1.2, fixture_adj))
+
+        predicted_points[row['id']] = base_score * fixture_adj
 
     model = pulp.LpProblem('FPL_Team_Optimization', pulp.LpMaximize)
     x = pulp.LpVariable.dicts('pick', players, cat='Binary')
 
     model += pulp.lpSum(predicted_points[i] * x[i] for i in players)
+
+    # Constraints
     model += pulp.lpSum(cost[i] * x[i] for i in players) <= budget
     model += pulp.lpSum(x[i] for i in players) == 15
 
@@ -84,6 +94,7 @@ def optimize_team(df: pd.DataFrame, budget: float = 100.0, fixture_weight: float
 
     selected_ids = [i for i in players if x[i].value() == 1]
     return df[df['id'].isin(selected_ids)]
+
 
 
 if __name__ == '__main__':
