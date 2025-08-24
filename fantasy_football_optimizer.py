@@ -27,34 +27,30 @@ def load_raw_data() -> dict:
     }
 
 
-def engineer_features(players: pd.DataFrame, fixtures: pd.DataFrame) -> pd.DataFrame:
+def engineer_features(players: pd.DataFrame, fixtures: pd.DataFrame, teams: pd.DataFrame) -> pd.DataFrame:
     df = players.copy()
     df['cost_m'] = df['now_cost'] / 10
     df['form'] = pd.to_numeric(df['form'], errors='coerce').fillna(0)
 
-    future_fixtures = fixtures[fixtures['event'].notna()]
-    future_fixtures = future_fixtures.sort_values(by='event')
+    future_fixtures = fixtures[fixtures['event'].notna()].sort_values(by='event')
 
     team_fixt_difficulty = {}
-
     for team_id in players['team'].unique():
-        team_fixts = future_fixtures[
-            (future_fixtures['team_h'] == team_id) | (future_fixtures['team_a'] == team_id)].head(5)
-
+        team_fixts = future_fixtures[(future_fixtures['team_h'] == team_id) | (future_fixtures['team_a'] == team_id)].head(5)
         total_diff = 0
         for _, row in team_fixts.iterrows():
-            if row['team_h'] == team_id:
-                total_diff += row['team_h_difficulty']
-            else:
-                total_diff += row['team_a_difficulty']
-
+            total_diff += row['team_h_difficulty'] if row['team_h'] == team_id else row['team_a_difficulty']
         avg_diff = total_diff / max(len(team_fixts), 1)
         team_fixt_difficulty[team_id] = avg_diff
 
     df['next_5_fixt_diff'] = df['team'].map(team_fixt_difficulty)
 
-    return df[['id', 'first_name', 'second_name', 'element_type', 'team', 'cost_m', 'total_points', 'form',
-               'next_5_fixt_diff']]
+    teams_min = teams[['id', 'name']].rename(columns={'id': 'team', 'name': 'team_name'})
+    df = df.merge(teams_min, on='team', how='left')
+
+    return df[['id','first_name','second_name','element_type','team','team_name',
+               'cost_m','total_points','form','next_5_fixt_diff']]
+
 
 
 def optimize_team(df: pd.DataFrame, budget: float = 100.0, fixture_weight: float = 1.0) -> pd.DataFrame:
@@ -99,6 +95,6 @@ def optimize_team(df: pd.DataFrame, budget: float = 100.0, fixture_weight: float
 
 if __name__ == '__main__':
     data = load_raw_data()
-    feats = engineer_features(data['players'], data['fixtures'])
+    feats = engineer_features(data['players'], data['fixtures'], data['teams'])
     team = optimize_team(feats)
-    print(team[['first_name', 'second_name', 'element_type', 'team', 'cost_m', 'total_points']])
+    print(team[['first_name', 'second_name', 'element_type', 'team_name', 'cost_m', 'total_points']])
